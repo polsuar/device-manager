@@ -4,16 +4,7 @@ import { DataTable } from "../organisms/DataTable";
 import { Typography } from "../atoms/Typography";
 import AddIcon from "@mui/icons-material/Add";
 import { ActionButton } from "../molecules/ActionButton";
-
-export interface Device {
-  id: string;
-  name: string;
-  type: string;
-  status: "online" | "offline";
-  batteryLevel: number;
-  signalStrength: number;
-  lastSeen: string;
-}
+import { Device } from "../../types/device";
 
 export interface DeviceTableTemplateProps {
   devices: Device[];

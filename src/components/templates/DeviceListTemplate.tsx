@@ -4,15 +4,7 @@ import { DeviceCard } from "../organisms/DeviceCard";
 import { Typography } from "../atoms/Typography";
 import AddIcon from "@mui/icons-material/Add";
 import { ActionButton } from "../molecules/ActionButton";
-
-export interface Device {
-  id: string;
-  name: string;
-  type: string;
-  status: "online" | "offline";
-  batteryLevel: number;
-  signalStrength: number;
-}
+import { Device } from "../../types/device";
 
 export interface DeviceListTemplateProps {
   devices: Device[];
@@ -23,8 +15,8 @@ export interface DeviceListTemplateProps {
   typeFilter: string;
   onTypeFilterChange: (value: string) => void;
   onAddDevice: () => void;
-  onEditDevice: (id: string) => void;
-  onDeleteDevice: (id: string) => void;
+  onEditDevice: (device: Device) => void;
+  onDeleteDevice: (device: Device) => void;
 }
 
 export const DeviceListTemplate = ({
@@ -60,7 +52,16 @@ export const DeviceListTemplate = ({
       <Grid container spacing={3}>
         {devices.map((device) => (
           <Grid item xs={12} sm={6} md={4} key={device.id}>
-            <DeviceCard {...device} onEdit={onEditDevice} onDelete={onDeleteDevice} />
+            <DeviceCard
+              id={device.id}
+              name={device.name}
+              type={device.type}
+              status={device.status}
+              batteryLevel={device.batteryLevel}
+              signalStrength={device.signalStrength}
+              onEdit={() => onEditDevice(device)}
+              onDelete={() => onDeleteDevice(device)}
+            />
           </Grid>
         ))}
       </Grid>

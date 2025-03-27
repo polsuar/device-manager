@@ -1,4 +1,4 @@
-import { Box, Grid, Divider } from "@mui/material";
+import { Box, Grid } from "@mui/material";
 import { Card } from "../atoms/Card";
 import { CardHeader } from "../molecules/CardHeader";
 import { Typography } from "../atoms/Typography";
