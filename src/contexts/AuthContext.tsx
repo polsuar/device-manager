@@ -1,7 +1,10 @@
 import { createContext, useContext, ReactNode } from "react";
 
 interface AuthContextType {
-  user: any;
+  user: {
+    email: string;
+    uid: string;
+  };
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -19,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("Sign out");
   };
 
-  return <AuthContext.Provider value={{ user: { email: "test@example.com" }, signIn, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user: { email: "test@example.com", uid: "test-user-id" }, signIn, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

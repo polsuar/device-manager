@@ -23,7 +23,7 @@ const mockDevice: DeviceDetail = {
 };
 
 export const DeviceDetailPage = () => {
-  const { id } = useParams<{ id: string }>();
+  useParams<{ id: string; }>();
   const navigate = useNavigate();
 
   const handleEdit = (deviceId: string) => {

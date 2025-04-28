@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
-import { DeviceListTemplate, Device } from "../components/templates/DeviceListTemplate";
+import { DeviceListTemplate,  } from "../components/templates/DeviceListTemplate";
 import { DeviceTableTemplate } from "../components/templates/DeviceTableTemplate";
 import { useNavigate } from "react-router-dom";
+import { Device } from "../types/device";
 
 // Datos de ejemplo
 const mockDevices: Device[] = [
@@ -13,6 +14,10 @@ const mockDevices: Device[] = [
     status: "online",
     batteryLevel: 85,
     signalStrength: 90,
+    lastSeen: "",
+    userId: "",
+    createdAt: "",
+    updatedAt: ""
   },
   {
     id: "2",
@@ -21,6 +26,10 @@ const mockDevices: Device[] = [
     status: "offline",
     batteryLevel: 15,
     signalStrength: 45,
+    lastSeen: "",
+    userId: "",
+    createdAt: "",
+    updatedAt: ""
   },
   {
     id: "3",
@@ -29,6 +38,10 @@ const mockDevices: Device[] = [
     status: "online",
     batteryLevel: 100,
     signalStrength: 95,
+    lastSeen: "",
+    userId: "",
+    createdAt: "",
+    updatedAt: ""
   },
 ];
 
@@ -86,8 +99,8 @@ export const DevicesPage = () => {
           typeFilter={typeFilter}
           onTypeFilterChange={setTypeFilter}
           onAddDevice={handleAddDevice}
-          onEditDevice={handleEditDevice}
-          onDeleteDevice={handleDeleteDevice}
+          onEditDevice={(device) => handleEditDevice(device.id)}
+          onDeleteDevice={(device) => handleDeleteDevice(device.id)}
         />
       ) : (
         <DeviceTableTemplate
@@ -104,8 +117,8 @@ export const DevicesPage = () => {
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
           onAddDevice={handleAddDevice}
-          onEditDevice={handleEditDevice}
-          onDeleteDevice={handleDeleteDevice}
+          onEditDevice={(device) => handleEditDevice(device.id)}
+          onDeleteDevice={(device) => handleDeleteDevice(device.id)}
           onViewDevice={handleViewDevice}
         />
       )}

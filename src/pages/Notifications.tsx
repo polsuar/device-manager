@@ -7,7 +7,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
   IconButton,
   Divider,
   Chip,
@@ -157,6 +156,11 @@ export default function Notifications() {
                     sx={{
                       bgcolor: notification.read ? "inherit" : "action.hover",
                     }}
+                    secondaryAction={
+                      <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(notification.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    }
                   >
                     <ListItemIcon>{getNotificationIcon(notification.type)}</ListItemIcon>
                     <ListItemText
@@ -172,11 +176,6 @@ export default function Notifications() {
                         </Typography>
                       }
                     />
-                    <ListItemSecondaryAction>
-                      <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(notification.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </ListItemSecondaryAction>
                   </ListItem>
                   {index < filteredNotifications.length - 1 && <Divider />}
                 </Box>

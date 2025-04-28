@@ -48,7 +48,7 @@ export const DeviceDetailTemplate = ({ device, onEdit, onDelete, onConfigure }: 
         </Typography>
         <Box sx={{ display: "flex", gap: 1 }}>
           <ActionButton icon={EditIcon} label="Editar" onClick={() => onEdit(device.id)} variant="outline" />
-          <ActionButton icon={DeleteIcon} label="Eliminar" onClick={() => onDelete(device.id)} variant="outline" color="error" />
+          <ActionButton icon={DeleteIcon} label="Eliminar" onClick={() => onDelete(device.id)} variant="outline" />
         </Box>
       </Box>
 
