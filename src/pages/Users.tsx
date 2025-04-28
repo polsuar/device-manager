@@ -59,66 +59,37 @@ interface Measurement {
   };
 }
 
+interface UserBasic {
+  userId: string;
+  email: string;
+}
+
 export default function Users() {
   const { user } = useAuth();
-  const [users, setUsers] = useState<UserStats[]>([]);
+  const [users, setUsers] = useState<UserBasic[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userMeasurements, setUserMeasurements] = useState<Measurement[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
         const usersRef = collection(db, "users");
         const usersSnapshot = await getDocs(usersRef);
-
-        const usersData: UserStats[] = [];
-
-        for (const userDoc of usersSnapshot.docs) {
-          const eventsRef = collection(doc(db, "users", userDoc.id), "EVENTS");
-          const eventsSnapshot = await getDocs(eventsRef);
-
-          if (!eventsSnapshot.empty) {
-            const measurements = eventsSnapshot.docs.map((doc) => {
-              const data = doc.data();
-              const eventKey = Object.keys(data)[0];
-              const eventData = data[eventKey];
-              return {
-                timestamp: parseInt(doc.id),
-                type: eventKey.split(".")[0],
-                value: eventData.value,
-                measurements: eventData.measurements || {},
-              };
-            });
-
-            const wifiEvents = measurements.filter((m) => m.type === "wifi_connected");
-            const batteryEvents = measurements.filter((m) => m.type === "low_battery");
-            const fallEvents = measurements.filter((m) => m.type === "probable_fall");
-            const offBodyEvents = measurements.filter((m) => m.type === "off_body");
-
-            usersData.push({
-              userId: userDoc.id,
-              email: userDoc.data().email || "Unknown",
-              totalDevices: 1,
-              activeDevices: wifiEvents.filter((e) => e.value).length > 0 ? 1 : 0,
-              averageBattery: batteryEvents.length > 0 ? batteryEvents.reduce((acc, curr) => acc + curr.value, 0) / batteryEvents.length : 0,
-              averageHeartRate: 0,
-              devicesWithLocation: measurements.filter((m) => m.measurements?.location?.lat !== 0).length,
-              lastActivity: measurements.length > 0 ? Math.max(...measurements.map((m) => m.timestamp)) : 0,
-            });
-          }
-        }
-
-        setUsers(usersData.sort((a, b) => b.lastActivity - a.lastActivity));
+        const usersData: UserBasic[] = usersSnapshot.docs.map((userDoc) => ({
+          userId: userDoc.id,
+          email: userDoc.data().email || "Unknown",
+        }));
+        setUsers(usersData);
       } catch (error) {
         console.error("Error fetching users:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchUsers();
   }, []);
 
@@ -128,7 +99,6 @@ export default function Users() {
     try {
       const eventsRef = collection(doc(db, "users", userId), "EVENTS");
       const eventsSnapshot = await getDocs(eventsRef);
-
       const measurements = eventsSnapshot.docs.map((doc) => {
         const data = doc.data();
         const eventKey = Object.keys(data)[0];
@@ -140,8 +110,20 @@ export default function Users() {
           measurements: eventData.measurements || {},
         };
       });
-
       setUserMeasurements(measurements);
+      // Calcular stats solo para este usuario
+      const wifiEvents = measurements.filter((m) => m.type === "wifi_connected");
+      const batteryEvents = measurements.filter((m) => m.type === "low_battery");
+      setUserStats({
+        userId,
+        email: users.find((u) => u.userId === userId)?.email || "Unknown",
+        totalDevices: 1,
+        activeDevices: wifiEvents.filter((e) => e.value).length > 0 ? 1 : 0,
+        averageBattery: batteryEvents.length > 0 ? batteryEvents.reduce((acc, curr) => acc + curr.value, 0) / batteryEvents.length : 0,
+        averageHeartRate: 0,
+        devicesWithLocation: measurements.filter((m) => m.measurements?.location?.lat !== 0).length,
+        lastActivity: measurements.length > 0 ? Math.max(...measurements.map((m) => m.timestamp)) : 0,
+      });
     } catch (error) {
       console.error("Error fetching user details:", error);
     } finally {
@@ -165,27 +147,30 @@ export default function Users() {
     </Card>
   );
 
-  // Helper function to format date
-  const formatDate = (timestamp: number, showFullDate: boolean = false) => {
+  // Helper functions to format date
+  const formatHour = (timestamp: number) => {
     const date = new Date(timestamp);
-    return showFullDate ? date.toLocaleString() : date.toLocaleTimeString();
+    const hh = String(date.getHours()).padStart(2, "0");
+    const min = String(date.getMinutes()).padStart(2, "0");
+    return `${hh}:${min}`;
+  };
+  const formatMonthDayHour = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const min = String(date.getMinutes()).padStart(2, "0");
+    return `${dd}/${mm} ${hh}:${min}`;
   };
 
-  // Helper function to filter last 24h data with activity
-  const getLast24HData = (data: Measurement[]) => {
-    if (data.length === 0) return [];
-
-    // Sort data by timestamp
-    const sortedData = [...data].sort((a, b) => a.timestamp - b.timestamp);
-
-    // Find the last timestamp with data
-    const lastTimestamp = sortedData[sortedData.length - 1].timestamp;
-
-    // Find the first timestamp that's within 24 hours of the last timestamp
-    const twentyFourHoursBeforeLastActivity = lastTimestamp - 24 * 60 * 60 * 1000;
-
-    // Filter data within that 24-hour window
-    return sortedData.filter((m) => m.timestamp >= twentyFourHoursBeforeLastActivity);
+  // Helper function to filter last 24h data with activity for a specific type
+  const getLast24HDataByType = (data: Measurement[], type: string) => {
+    const filtered = data.filter((m) => m.type === type);
+    if (filtered.length === 0) return [];
+    const sorted = [...filtered].sort((a, b) => a.timestamp - b.timestamp);
+    const lastTimestamp = sorted[sorted.length - 1].timestamp;
+    const twentyFourHoursBeforeLast = lastTimestamp - 24 * 60 * 60 * 1000;
+    return sorted.filter((m) => m.timestamp >= twentyFourHoursBeforeLast);
   };
 
   // Chart component with expansion capability
@@ -219,10 +204,7 @@ export default function Users() {
             <TableHead>
               <TableRow>
                 <TableCell>User ID</TableCell>
-                <TableCell>Total Devices</TableCell>
-                <TableCell>Active Devices</TableCell>
-                <TableCell>Avg Battery</TableCell>
-                <TableCell>Last Activity</TableCell>
+                <TableCell>Email</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -230,10 +212,7 @@ export default function Users() {
               {users.map((user) => (
                 <TableRow key={user.userId}>
                   <TableCell>{user.userId}</TableCell>
-                  <TableCell>{user.totalDevices}</TableCell>
-                  <TableCell>{user.activeDevices}</TableCell>
-                  <TableCell>{user.averageBattery.toFixed(1)}%</TableCell>
-                  <TableCell>{user.lastActivity ? new Date(user.lastActivity).toLocaleString() : "Never"}</TableCell>
+                  <TableCell>{user.email}</TableCell>
                   <TableCell>
                     <IconButton onClick={() => handleViewUserDetails(user.userId)}>
                       <ViewIcon />
@@ -246,37 +225,33 @@ export default function Users() {
         </TableContainer>
       )}
 
-      {selectedUser && (
+      {selectedUser && userStats && (
         <Box>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-            <Typography variant="h5">User Details: {users.find((u) => u.userId === selectedUser)?.userId}</Typography>
-            <IconButton onClick={() => setSelectedUser(null)}>
+            <Typography variant="h5">User Details: {userStats.userId}</Typography>
+            <IconButton
+              onClick={() => {
+                setSelectedUser(null);
+                setUserStats(null);
+                setUserMeasurements([]);
+              }}
+            >
               <ViewIcon />
             </IconButton>
           </Box>
 
           <Grid container spacing={3}>
             <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Total Devices" value={users.find((u) => u.userId === selectedUser)?.totalDevices || 0} icon={DevicesIcon} color="#1976d2" />
+              <StatCard title="Total Devices" value={userStats.totalDevices} icon={DevicesIcon} color="#1976d2" />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Active Devices" value={users.find((u) => u.userId === selectedUser)?.activeDevices || 0} icon={WifiIcon} color="#2e7d32" />
+              <StatCard title="Active Devices" value={userStats.activeDevices} icon={WifiIcon} color="#2e7d32" />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Avg Battery"
-                value={`${users.find((u) => u.userId === selectedUser)?.averageBattery.toFixed(1) || 0}%`}
-                icon={BatteryIcon}
-                color="#ed6c02"
-              />
+              <StatCard title="Avg Battery" value={`${userStats.averageBattery.toFixed(1)}%`} icon={BatteryIcon} color="#ed6c02" />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Avg Heart Rate"
-                value={`${users.find((u) => u.userId === selectedUser)?.averageHeartRate || 0} bpm`}
-                icon={HeartRateIcon}
-                color="#d32f2f"
-              />
+              <StatCard title="Avg Heart Rate" value={`${userStats.averageHeartRate} bpm`} icon={HeartRateIcon} color="#d32f2f" />
             </Grid>
           </Grid>
 
@@ -286,18 +261,23 @@ export default function Users() {
                 <ChartContainer title="Device Status (On/Off Body)" chartId="device-status">
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart
-                      data={getLast24HData(userMeasurements)
-                        .filter((m) => m.type === "off_body")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp),
-                          status: m.value ? "Off" : "On",
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "off_body").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        status: m.value ? "Off" : "On",
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis dataKey="status" type="category" domain={["Off", "On"]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="status" stroke="#1976d2" name="Device Status" />
                     </LineChart>
@@ -309,18 +289,23 @@ export default function Users() {
                 <ChartContainer title="WiFi Connection Status" chartId="wifi-status">
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart
-                      data={getLast24HData(userMeasurements)
-                        .filter((m) => m.type === "wifi_connected")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp),
-                          connected: m.value ? "On" : "Off",
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "wifi_connected").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        connected: m.value ? "On" : "Off",
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis dataKey="connected" type="category" domain={["Off", "On"]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="connected" stroke="#2e7d32" name="WiFi Status" />
                     </LineChart>
@@ -332,18 +317,23 @@ export default function Users() {
                 <ChartContainer title="Battery Level" chartId="battery-level">
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart
-                      data={getLast24HData(userMeasurements)
-                        .filter((m) => m.type === "low_battery")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp),
-                          battery: m.value,
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "low_battery").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        battery: m.value,
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis domain={[0, 100]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="battery" stroke="#ed6c02" name="Battery Level (%)" />
                     </LineChart>
@@ -355,19 +345,30 @@ export default function Users() {
                 <ChartContainer title="Button Press Events" chartId="button-press">
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart
-                      data={getLast24HData(userMeasurements)
-                        .filter((m) => m.type === "button_press" || m.type === "notification_button_press")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp),
+                      data={(() => {
+                        const buttonPress = getLast24HDataByType(userMeasurements, "button_press");
+                        const notificationPress = getLast24HDataByType(userMeasurements, "notification_button_press");
+                        // Unir ambos tipos y ordenar por timestamp
+                        const merged = [...buttonPress, ...notificationPress].sort((a, b) => a.timestamp - b.timestamp);
+                        return merged.map((m) => ({
+                          timestamp: formatHour(m.timestamp),
+                          rawTimestamp: m.timestamp,
                           buttonPress: m.type === "button_press" ? 1 : 0,
                           notificationPress: m.type === "notification_button_press" ? 1 : 0,
-                        }))}
+                        }));
+                      })()}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Bar dataKey="buttonPress" stackId="a" fill="#9c27b0" name="Button Press" />
                       <Bar dataKey="notificationPress" stackId="a" fill="#673ab7" name="Notification Button Press" />
@@ -394,18 +395,23 @@ export default function Users() {
                 {expandedChart === "device-status" && (
                   <ResponsiveContainer>
                     <LineChart
-                      data={userMeasurements
-                        .filter((m) => m.type === "off_body")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp, true),
-                          status: m.value ? "Off" : "On",
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "off_body").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        status: m.value ? "Off" : "On",
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis dataKey="status" type="category" domain={["Off", "On"]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="status" stroke="#1976d2" name="Device Status" />
                     </LineChart>
@@ -414,18 +420,23 @@ export default function Users() {
                 {expandedChart === "wifi-status" && (
                   <ResponsiveContainer>
                     <LineChart
-                      data={userMeasurements
-                        .filter((m) => m.type === "wifi_connected")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp, true),
-                          connected: m.value ? "On" : "Off",
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "wifi_connected").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        connected: m.value ? "On" : "Off",
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis dataKey="connected" type="category" domain={["Off", "On"]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="connected" stroke="#2e7d32" name="WiFi Status" />
                     </LineChart>
@@ -434,18 +445,23 @@ export default function Users() {
                 {expandedChart === "battery-level" && (
                   <ResponsiveContainer>
                     <LineChart
-                      data={userMeasurements
-                        .filter((m) => m.type === "low_battery")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp, true),
-                          battery: m.value,
-                        }))}
+                      data={getLast24HDataByType(userMeasurements, "low_battery").map((m) => ({
+                        timestamp: formatHour(m.timestamp),
+                        rawTimestamp: m.timestamp,
+                        battery: m.value,
+                      }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis domain={[0, 100]} />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Line type="monotone" dataKey="battery" stroke="#ed6c02" name="Battery Level (%)" />
                     </LineChart>
@@ -454,19 +470,30 @@ export default function Users() {
                 {expandedChart === "button-press" && (
                   <ResponsiveContainer>
                     <BarChart
-                      data={userMeasurements
-                        .filter((m) => m.type === "button_press" || m.type === "notification_button_press")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatDate(m.timestamp, true),
+                      data={(() => {
+                        const buttonPress = getLast24HDataByType(userMeasurements, "button_press");
+                        const notificationPress = getLast24HDataByType(userMeasurements, "notification_button_press");
+                        // Unir ambos tipos y ordenar por timestamp
+                        const merged = [...buttonPress, ...notificationPress].sort((a, b) => a.timestamp - b.timestamp);
+                        return merged.map((m) => ({
+                          timestamp: formatHour(m.timestamp),
+                          rawTimestamp: m.timestamp,
                           buttonPress: m.type === "button_press" ? 1 : 0,
                           notificationPress: m.type === "notification_button_press" ? 1 : 0,
-                        }))}
+                        }));
+                      })()}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="timestamp" />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip
+                        labelFormatter={(_, payload) => {
+                          if (payload && payload.length > 0) {
+                            return formatMonthDayHour(payload[0].payload.rawTimestamp);
+                          }
+                          return "";
+                        }}
+                      />
                       <Legend />
                       <Bar dataKey="buttonPress" stackId="a" fill="#9c27b0" name="Button Press" />
                       <Bar dataKey="notificationPress" stackId="a" fill="#673ab7" name="Notification Button Press" />
@@ -498,7 +525,7 @@ export default function Users() {
                       .slice(0, 5)
                       .map((m) => (
                         <TableRow key={m.timestamp}>
-                          <TableCell>{new Date(m.timestamp).toLocaleString()}</TableCell>
+                          <TableCell>{formatMonthDayHour(m.timestamp)}</TableCell>
                           <TableCell>{m.type}</TableCell>
                           <TableCell>{m.value !== null ? (m.value ? "Success" : "Error") : "N/A"}</TableCell>
                           <TableCell>
