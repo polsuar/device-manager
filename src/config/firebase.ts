@@ -20,34 +20,38 @@ const uatConfig = {
   appId: import.meta.env.VITE_FIREBASE_UAT_APP_ID,
 };
 
-let currentApp: FirebaseApp | null = null;
-let currentDb: Firestore | null = null;
-let currentAuth: Auth | null = null;
+const apps: Record<string, FirebaseApp> = {};
+const dbs: Record<string, Firestore> = {};
+const auths: Record<string, Auth> = {};
 
 export const initializeFirebase = async (environment: "UAT" | "PROD") => {
   try {
+    const config = environment === "PROD" ? prodConfig : uatConfig;
+    const appName = `firebase-${environment.toLowerCase()}`;
+
     // Cleanup previous instance if exists
-    if (currentApp) {
-      await deleteApp(currentApp);
+    if (apps[appName]) {
+      await deleteApp(apps[appName]);
     }
 
     // Initialize with the correct config
-    currentApp = initializeApp(environment === "PROD" ? prodConfig : uatConfig);
-    currentDb = getFirestore(currentApp);
-    currentAuth = getAuth(currentApp);
+    apps[appName] = initializeApp(config, appName);
+    dbs[appName] = getFirestore(apps[appName]);
+    auths[appName] = getAuth(apps[appName]);
 
-    return { app: currentApp, db: currentDb, auth: currentAuth };
+    return { app: apps[appName], db: dbs[appName], auth: auths[appName] };
   } catch (error) {
-    console.error("Error initializing Firebase:", error);
+    console.error(`Error initializing Firebase for ${environment}:`, error);
     throw error;
   }
 };
 
-export const getFirebaseInstance = () => {
-  if (!currentDb || !currentAuth) {
-    throw new Error("Firebase not initialized");
+export const getFirebaseInstance = (environment: "UAT" | "PROD" = "PROD") => {
+  const appName = `firebase-${environment.toLowerCase()}`;
+  if (!apps[appName] || !dbs[appName] || !auths[appName]) {
+    throw new Error(`Firebase instance for ${environment} not initialized`);
   }
-  return { db: currentDb, auth: currentAuth };
+  return { app: apps[appName], db: dbs[appName], auth: auths[appName] };
 };
 
 // Initialize with PROD by default
