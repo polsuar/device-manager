@@ -12,6 +12,9 @@ import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -25,6 +28,7 @@ import PeopleIcon from "@mui/icons-material/People";
 import { SvgIconComponent } from "@mui/icons-material";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useEnvironment } from "../contexts/EnvironmentContext";
 
 const drawerWidth = 240;
 
@@ -107,6 +111,7 @@ const navigation: NavigationItem[] = [
 export default function DashboardLayout() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { environment, setEnvironment } = useEnvironment();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -134,9 +139,25 @@ export default function DashboardLayout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Device Manager
           </Typography>
+          <FormControl size="small" sx={{ minWidth: 120, mr: 2 }}>
+            <Select
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value as "UAT" | "PROD")}
+              sx={{
+                color: "white",
+                ".MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255, 255, 255, 0.5)" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255, 255, 255, 0.8)" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "white" },
+                ".MuiSvgIcon-root": { color: "white" },
+              }}
+            >
+              <MenuItem value="UAT">UAT</MenuItem>
+              <MenuItem value="PROD">PROD</MenuItem>
+            </Select>
+          </FormControl>
         </Toolbar>
       </AppBar>
       <StyledDrawer variant="permanent" open={isOpen}>

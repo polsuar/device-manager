@@ -14,13 +14,14 @@ import {
   Query,
   CollectionReference,
 } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { getFirebaseInstance } from "../config/firebase";
 import { Device, DeviceFilters, DevicePagination } from "../types/device";
 
 const COLLECTION_NAME = "devices";
 
 export const deviceService = {
   async getDevices(filters: DeviceFilters = {}, pagination: DevicePagination): Promise<Device[]> {
+    const { db } = getFirebaseInstance();
     let q: CollectionReference | Query = collection(db, COLLECTION_NAME);
 
     if (filters.status) {
@@ -43,12 +44,14 @@ export const deviceService = {
   },
 
   async getDevice(id: string): Promise<Device | null> {
+    const { db } = getFirebaseInstance();
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     return docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as Device) : null;
   },
 
   async createDevice(device: Omit<Device, "id" | "createdAt" | "updatedAt">): Promise<Device> {
+    const { db } = getFirebaseInstance();
     const now = new Date().toISOString();
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...device,
@@ -59,6 +62,7 @@ export const deviceService = {
   },
 
   async updateDevice(id: string, device: Partial<Device>): Promise<void> {
+    const { db } = getFirebaseInstance();
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...device,
@@ -67,11 +71,13 @@ export const deviceService = {
   },
 
   async deleteDevice(id: string): Promise<void> {
+    const { db } = getFirebaseInstance();
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
   },
 
   async getTotalDevices(filters: DeviceFilters = {}): Promise<number> {
+    const { db } = getFirebaseInstance();
     let q: CollectionReference | Query = collection(db, COLLECTION_NAME);
 
     if (filters.status) {

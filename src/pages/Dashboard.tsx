@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useEnvironment } from "../contexts/EnvironmentContext";
 import { Box, Grid, Paper, Typography, Card, CardContent, LinearProgress } from "@mui/material";
 import { DevicesOther as DevicesIcon, BatteryFull as BatteryIcon, Favorite as HeartRateIcon, Wifi as WifiIcon } from "@mui/icons-material";
-import { db } from "../config/firebase";
 import { collection, getDocs, query, where, getDoc, doc } from "firebase/firestore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
 
@@ -33,6 +33,7 @@ interface DeviceStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { getFirebase } = useEnvironment();
   const [stats, setStats] = useState<DeviceStats>({
     totalDevices: 0,
     activeDevices: 0,
@@ -46,6 +47,7 @@ export default function Dashboard() {
     const fetchDeviceStats = async () => {
       try {
         console.log("Iniciando conexión con Firebase...");
+        const { db } = getFirebase();
 
         // Obtener userId de la URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -120,7 +122,7 @@ export default function Dashboard() {
     };
 
     fetchDeviceStats();
-  }, [user]);
+  }, [user, getFirebase]);
 
   const StatCard = ({ title, value, icon: Icon, color }: { title: string; value: number | string; icon: any; color: string }) => (
     <Card>

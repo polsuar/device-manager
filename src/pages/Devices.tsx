@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Box, Grid, Paper, Typography, Card, CardContent } from "@mui/material";
 import { DevicesOther as DevicesIcon, BatteryFull as BatteryIcon, Favorite as HeartRateIcon, Wifi as WifiIcon } from "@mui/icons-material";
-import { db } from "../config/firebase";
 import { collection, getDocs, doc } from "firebase/firestore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { getFirebaseInstance } from "../config/firebase";
+import { Device, DeviceStatus, DeviceType } from "../types/device";
+import { deviceService } from "../services/deviceService";
 
 interface Measurement {
   timestamp: number;
@@ -33,6 +35,7 @@ interface DeviceStats {
 
 export default function Devices() {
   const { user } = useAuth();
+  const { db } = getFirebaseInstance();
   const [stats, setStats] = useState<DeviceStats>({
     totalDevices: 0,
     activeDevices: 0,
@@ -41,6 +44,16 @@ export default function Devices() {
     devicesWithLocation: 0,
     measurements: [],
   });
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [filters, setFilters] = useState<DeviceFilters>({});
+  const [pagination, setPagination] = useState<DevicePagination>({
+    page: 0,
+    pageSize: 10,
+  });
+  const [totalDevices, setTotalDevices] = useState(0);
 
   useEffect(() => {
     const fetchDeviceStats = async () => {
@@ -120,7 +133,24 @@ export default function Devices() {
     };
 
     fetchDeviceStats();
-  }, []);
+  }, [db]);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      setLoading(true);
+      try {
+        const [devicesData, total] = await Promise.all([deviceService.getDevices(filters, pagination), deviceService.getTotalDevices(filters)]);
+        setDevices(devicesData);
+        setTotalDevices(total);
+      } catch (error) {
+        console.error("Error fetching devices:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, [filters, pagination]);
 
   return (
     <Box>

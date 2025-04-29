@@ -1,9 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
+import { initializeApp, FirebaseApp, deleteApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, Auth } from "firebase/auth";
 
-const firebaseConfig = {
+const prodConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -12,34 +11,46 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Verificar que todas las variables de entorno necesarias estén definidas
-const requiredEnvVars = [
-  "VITE_FIREBASE_API_KEY",
-  "VITE_FIREBASE_AUTH_DOMAIN",
-  "VITE_FIREBASE_PROJECT_ID",
-  "VITE_FIREBASE_STORAGE_BUCKET",
-  "VITE_FIREBASE_MESSAGING_SENDER_ID",
-  "VITE_FIREBASE_APP_ID",
-];
+const uatConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_UAT_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_UAT_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_UAT_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_UAT_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_UAT_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_UAT_APP_ID,
+};
 
-const missingEnvVars = requiredEnvVars.filter((varName) => !import.meta.env[varName]);
+let currentApp: FirebaseApp | null = null;
+let currentDb: Firestore | null = null;
+let currentAuth: Auth | null = null;
 
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required environment variables: ${missingEnvVars.join(", ")}\n` + "Please check your .env file and make sure all required variables are defined."
-  );
-}
+export const initializeFirebase = async (environment: "UAT" | "PROD") => {
+  try {
+    // Cleanup previous instance if exists
+    if (currentApp) {
+      await deleteApp(currentApp);
+    }
 
-console.log("Inicializando Firebase...");
+    // Initialize with the correct config
+    currentApp = initializeApp(environment === "PROD" ? prodConfig : uatConfig);
+    currentDb = getFirestore(currentApp);
+    currentAuth = getAuth(currentApp);
 
-const app = initializeApp(firebaseConfig);
-console.log("Firebase app inicializada");
+    return { app: currentApp, db: currentDb, auth: currentAuth };
+  } catch (error) {
+    console.error("Error initializing Firebase:", error);
+    throw error;
+  }
+};
 
-export const db = getFirestore(app);
-console.log("Firestore inicializado");
+export const getFirebaseInstance = () => {
+  if (!currentDb || !currentAuth) {
+    throw new Error("Firebase not initialized");
+  }
+  return { db: currentDb, auth: currentAuth };
+};
 
-export const auth = getAuth(app);
-console.log("Auth inicializado");
-
-export const analytics = getAnalytics(app);
-console.log("Analytics inicializado");
+// Initialize with PROD by default
+initializeFirebase("PROD").catch((error) => {
+  console.error("Error initializing default Firebase instance:", error);
+});
