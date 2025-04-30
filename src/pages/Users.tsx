@@ -1090,30 +1090,6 @@ export default function Users() {
                       </ResponsiveContainer>
                     </ChartContainer>
                   </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <ChartContainer title="Download Speed Over Time" chartId="network-speed">
-                      <ResponsiveContainer width="100%" height={300}>
-                        <NetworkSpeedChart />
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <ChartContainer title="Signal Strength Over Time" chartId="network-signal">
-                      <ResponsiveContainer width="100%" height={300}>
-                        <NetworkSignalChart />
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <ChartContainer title="Data Usage Over Time" chartId="network-data">
-                      <ResponsiveContainer width="100%" height={300}>
-                        <NetworkDataChart />
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </Grid>
                 </Grid>
               </Box>
             </>
