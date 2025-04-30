@@ -25,7 +25,7 @@ import {
   BatteryFull as BatteryIcon,
   Favorite as HeartRateIcon,
   Wifi as WifiIcon,
-  Visibility as ViewIcon,
+  ArrowBack as ArrowBackIcon,
   ZoomIn as ZoomInIcon,
   Close as CloseIcon,
 } from "@mui/icons-material";
@@ -87,10 +87,10 @@ export default function Users() {
   const [error, setError] = useState<string | null>(null);
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
   const [chartDateRanges, setChartDateRanges] = useState<Record<string, ChartDateRange>>({
-    "device-status": { startDate: subDays(new Date(), 7), endDate: new Date() },
-    "wifi-status": { startDate: subDays(new Date(), 7), endDate: new Date() },
-    "battery-level": { startDate: subDays(new Date(), 7), endDate: new Date() },
-    "button-press": { startDate: subDays(new Date(), 7), endDate: new Date() },
+    "device-status": { startDate: subDays(new Date(), 1), endDate: new Date() },
+    "wifi-status": { startDate: subDays(new Date(), 1), endDate: new Date() },
+    "battery-level": { startDate: subDays(new Date(), 1), endDate: new Date() },
+    "button-press": { startDate: subDays(new Date(), 1), endDate: new Date() },
   });
 
   const fetchUsers = async () => {
@@ -380,7 +380,7 @@ export default function Users() {
                 setUserMeasurements([]);
               }}
             >
-              <ViewIcon />
+              <ArrowBackIcon />
             </IconButton>
           </Box>
 
