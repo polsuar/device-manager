@@ -18,6 +18,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  TextField,
 } from "@mui/material";
 import {
   DevicesOther as DevicesIcon,
@@ -30,6 +31,11 @@ import {
 } from "@mui/icons-material";
 import { collection, getDocs, doc } from "firebase/firestore";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Area, AreaChart } from "recharts";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface UserStats {
   userId: string;
@@ -63,16 +69,29 @@ interface UserBasic {
   email: string;
 }
 
+interface ChartDateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
 export default function Users() {
   const { user } = useAuth();
   const { getFirebase } = useEnvironment();
   const [users, setUsers] = useState<UserBasic[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserBasic[]>([]);
+  const [searchId, setSearchId] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userMeasurements, setUserMeasurements] = useState<Measurement[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
+  const [chartDateRanges, setChartDateRanges] = useState<Record<string, ChartDateRange>>({
+    "device-status": { startDate: subDays(new Date(), 7), endDate: new Date() },
+    "wifi-status": { startDate: subDays(new Date(), 7), endDate: new Date() },
+    "battery-level": { startDate: subDays(new Date(), 7), endDate: new Date() },
+    "button-press": { startDate: subDays(new Date(), 7), endDate: new Date() },
+  });
 
   const fetchUsers = async () => {
     try {
@@ -145,6 +164,14 @@ export default function Users() {
     fetchUsers();
   }, [getFirebase]);
 
+  useEffect(() => {
+    if (searchId.trim() === "") {
+      setFilteredUsers(users);
+    } else {
+      setFilteredUsers(users.filter((user) => user.userId.toLowerCase().includes(searchId.toLowerCase())));
+    }
+  }, [searchId, users]);
+
   const StatCard = ({ title, value, icon: Icon, color }: { title: string; value: number | string; icon: any; color: string }) => (
     <Paper sx={{ p: 2, display: "flex", alignItems: "center", gap: 2 }}>
       <Icon sx={{ color, fontSize: 40 }} />
@@ -183,22 +210,31 @@ export default function Users() {
     return sorted.filter((m) => m.timestamp >= twentyFourHoursBeforeLast);
   };
 
-  const generateContinuousData = (measurements: Measurement[], type: string, last24HoursOnly: boolean = true) => {
-    // Filtramos y ordenamos los eventos
-    let events = measurements.filter((m) => m.type === type).sort((a, b) => a.timestamp - b.timestamp);
+  const handleDateRangeChange = (chartId: string, field: "startDate" | "endDate", value: Date) => {
+    setChartDateRanges((prev) => ({
+      ...prev,
+      [chartId]: {
+        ...prev[chartId],
+        [field]: value,
+      },
+    }));
+  };
 
+  const generateContinuousData = (measurements: Measurement[], type: string, chartId?: string) => {
+    let events = measurements.filter((m) => m.type === type).sort((a, b) => a.timestamp - b.timestamp);
     if (events.length === 0) return [];
 
-    // Si solo queremos las últimas 24 horas
-    if (last24HoursOnly) {
+    if (chartId) {
+      const { startDate, endDate } = chartDateRanges[chartId];
+      const start = startOfDay(startDate).getTime();
+      const end = endOfDay(endDate).getTime();
+      events = events.filter((m) => m.timestamp >= start && m.timestamp <= end);
+    } else {
       const now = Date.now();
       const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
-
-      // Encontramos el último estado antes de las 24 horas si existe
       const lastBeforeCutoff = events.filter((e) => e.timestamp < twentyFourHoursAgo).pop();
       events = events.filter((m) => m.timestamp >= twentyFourHoursAgo);
 
-      // Si hay un estado anterior al período, lo incluimos como punto inicial
       if (lastBeforeCutoff) {
         events.unshift({
           ...lastBeforeCutoff,
@@ -207,12 +243,9 @@ export default function Users() {
       }
     }
 
-    // Si no hay eventos después del filtro, retornamos vacío
     if (events.length === 0) return [];
 
     const continuousData = [];
-
-    // Agregamos cada punto con su estado hasta el siguiente cambio
     for (let i = 0; i < events.length; i++) {
       const current = events[i];
       const next = events[i + 1];
@@ -223,7 +256,6 @@ export default function Users() {
         value: current.value,
       });
 
-      // Si hay un siguiente punto, agregamos un punto adicional justo antes del cambio
       if (next) {
         continuousData.push({
           timestamp: formatHour(next.timestamp),
@@ -233,8 +265,7 @@ export default function Users() {
       }
     }
 
-    // Agregamos el punto final con el último estado conocido
-    if (last24HoursOnly) {
+    if (!chartId) {
       const now = Date.now();
       const lastEvent = events[events.length - 1];
       continuousData.push({
@@ -282,31 +313,60 @@ export default function Users() {
       </Typography>
 
       {!selectedUser && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: "#f5f5f5", borderBottom: "2px solid #1976d2" }}>
-                <TableCell sx={{ fontWeight: "bold", pl: 3, width: 220 }}>User ID</TableCell>
-                <TableCell sx={{ fontWeight: "bold", textAlign: "right", pr: 3, width: 180 }}>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.userId} hover>
-                  <TableCell sx={{ pl: 3 }}>{user.userId}</TableCell>
-                  <TableCell sx={{ textAlign: "right", pr: 3 }}>
-                    <Button variant="outlined" size="small" sx={{ mr: 1 }} onClick={() => handleViewUserDetails(user.userId)}>
-                      Eventos
-                    </Button>
-                    <Button variant="outlined" size="small" color="warning" disabled>
-                      Logs
-                    </Button>
-                  </TableCell>
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            fullWidth
+            label="Buscar por ID de usuario"
+            variant="outlined"
+            value={searchId}
+            onChange={(e) => setSearchId(e.target.value)}
+            sx={{
+              mb: 2,
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "white",
+                "&:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#1976d2",
+                },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#1976d2",
+                },
+              },
+            }}
+          />
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow
+                  sx={{
+                    backgroundColor: "#1976d2",
+                    "& .MuiTableCell-head": {
+                      color: "white",
+                      fontWeight: "bold",
+                    },
+                  }}
+                >
+                  <TableCell sx={{ pl: 3, width: 220 }}>User ID</TableCell>
+                  <TableCell sx={{ textAlign: "right", pr: 3, width: 180 }}>Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.userId} hover>
+                    <TableCell sx={{ pl: 3 }}>{user.userId}</TableCell>
+                    <TableCell sx={{ textAlign: "right", pr: 3 }}>
+                      <Button variant="outlined" size="small" sx={{ mr: 1 }} onClick={() => handleViewUserDetails(user.userId)}>
+                        Eventos
+                      </Button>
+                      <Button variant="outlined" size="small" color="warning" disabled>
+                        Logs
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
       )}
 
       {selectedUser && userStats && (
@@ -345,7 +405,7 @@ export default function Users() {
                 <ChartContainer title="Device Status (On/Off Body)" chartId="device-status">
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
-                      data={generateContinuousData(userMeasurements, "off_body", true).map((m) => ({
+                      data={generateContinuousData(userMeasurements, "off_body", "device-status").map((m) => ({
                         ...m,
                         status: m.value ? 1 : 0,
                       }))}
@@ -392,7 +452,7 @@ export default function Users() {
                 <ChartContainer title="WiFi Connection Status" chartId="wifi-status">
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
-                      data={generateContinuousData(userMeasurements, "wifi_connected", true).map((m) => ({
+                      data={generateContinuousData(userMeasurements, "wifi_connected", "wifi-status").map((m) => ({
                         ...m,
                         connected: m.value ? 1 : 0,
                       }))}
@@ -439,9 +499,8 @@ export default function Users() {
                 <ChartContainer title="Battery Level" chartId="battery-level">
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
-                      data={getLast24HDataByType(userMeasurements, "low_battery").map((m) => ({
-                        timestamp: formatHour(m.timestamp),
-                        rawTimestamp: m.timestamp,
+                      data={generateContinuousData(userMeasurements, "low_battery", "battery-level").map((m) => ({
+                        ...m,
                         battery: m.value,
                       }))}
                       margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
@@ -549,14 +608,46 @@ export default function Users() {
               </IconButton>
             </DialogTitle>
             <DialogContent>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                <Box sx={{ mb: 2, mt: 1 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <DatePicker
+                        label="Fecha de inicio"
+                        value={expandedChart ? chartDateRanges[expandedChart].startDate : undefined}
+                        onChange={(newValue) => expandedChart && newValue && handleDateRangeChange(expandedChart, "startDate", newValue)}
+                        maxDate={expandedChart ? chartDateRanges[expandedChart].endDate : undefined}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            size: "small",
+                          },
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <DatePicker
+                        label="Fecha de fin"
+                        value={expandedChart ? chartDateRanges[expandedChart].endDate : undefined}
+                        onChange={(newValue) => expandedChart && newValue && handleDateRangeChange(expandedChart, "endDate", newValue)}
+                        minDate={expandedChart ? chartDateRanges[expandedChart].startDate : undefined}
+                        maxDate={new Date()}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            size: "small",
+                          },
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+              </LocalizationProvider>
               <Box sx={{ height: "70vh", width: "100%" }}>
-                <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-                  Mostrando historial completo de eventos
-                </Typography>
                 {expandedChart === "device-status" && (
                   <ResponsiveContainer>
                     <AreaChart
-                      data={generateContinuousData(userMeasurements, "off_body", false).map((m) => ({
+                      data={generateContinuousData(userMeasurements, "off_body", expandedChart).map((m) => ({
                         ...m,
                         status: m.value ? 1 : 0,
                       }))}
@@ -600,7 +691,7 @@ export default function Users() {
                 {expandedChart === "wifi-status" && (
                   <ResponsiveContainer>
                     <AreaChart
-                      data={generateContinuousData(userMeasurements, "wifi_connected", false).map((m) => ({
+                      data={generateContinuousData(userMeasurements, "wifi_connected", expandedChart).map((m) => ({
                         ...m,
                         connected: m.value ? 1 : 0,
                       }))}
@@ -644,14 +735,10 @@ export default function Users() {
                 {expandedChart === "battery-level" && (
                   <ResponsiveContainer>
                     <AreaChart
-                      data={userMeasurements
-                        .filter((m) => m.type === "low_battery")
-                        .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((m) => ({
-                          timestamp: formatHour(m.timestamp),
-                          rawTimestamp: m.timestamp,
-                          battery: m.value,
-                        }))}
+                      data={generateContinuousData(userMeasurements, "low_battery", expandedChart).map((m) => ({
+                        ...m,
+                        battery: m.value,
+                      }))}
                       margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -693,6 +780,11 @@ export default function Users() {
                     <BarChart
                       data={userMeasurements
                         .filter((m) => m.type === "button_press" || m.type === "notification_button_press")
+                        .filter((m) => {
+                          const { startDate, endDate } = chartDateRanges[expandedChart];
+                          const timestamp = m.timestamp;
+                          return timestamp >= startOfDay(startDate).getTime() && timestamp <= endOfDay(endDate).getTime();
+                        })
                         .sort((a, b) => a.timestamp - b.timestamp)
                         .map((m) => ({
                           timestamp: formatHour(m.timestamp),
