@@ -378,6 +378,12 @@ export default function Users() {
                 setSelectedUser(null);
                 setUserStats(null);
                 setUserMeasurements([]);
+                setChartDateRanges({
+                  "device-status": { startDate: subDays(new Date(), 1), endDate: new Date() },
+                  "wifi-status": { startDate: subDays(new Date(), 1), endDate: new Date() },
+                  "battery-level": { startDate: subDays(new Date(), 1), endDate: new Date() },
+                  "button-press": { startDate: subDays(new Date(), 1), endDate: new Date() },
+                });
               }}
             >
               <ArrowBackIcon />
@@ -407,7 +413,7 @@ export default function Users() {
                     <AreaChart
                       data={generateContinuousData(userMeasurements, "off_body", "device-status").map((m) => ({
                         ...m,
-                        status: m.value ? 1 : 0,
+                        status: m.value ? 0 : 1,
                       }))}
                       margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                     >
@@ -431,7 +437,7 @@ export default function Users() {
                           );
                         }}
                       />
-                      <YAxis type="number" domain={[0, 1]} ticks={[0, 1]} tickFormatter={(value) => (value === 1 ? "Off" : "On")} />
+                      <YAxis type="number" domain={[0, 1]} ticks={[0, 1]} tickFormatter={(value) => (value === 1 ? "On" : "Off")} />
                       <Tooltip
                         labelFormatter={(_, payload) => {
                           if (payload && payload.length > 0) {
@@ -439,7 +445,7 @@ export default function Users() {
                           }
                           return "";
                         }}
-                        formatter={(value: any) => [value === 1 ? "Off" : "On", "Status"]}
+                        formatter={(value: any) => [value === 1 ? "On" : "Off", "Status"]}
                       />
                       <Legend />
                       <Area type="stepAfter" dataKey="status" stroke="#1976d2" fill="#1976d2" fillOpacity={0.1} strokeWidth={2} name="Device Status" />
@@ -649,7 +655,7 @@ export default function Users() {
                     <AreaChart
                       data={generateContinuousData(userMeasurements, "off_body", expandedChart).map((m) => ({
                         ...m,
-                        status: m.value ? 1 : 0,
+                        status: m.value ? 0 : 1,
                       }))}
                       margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                     >
@@ -673,7 +679,7 @@ export default function Users() {
                           );
                         }}
                       />
-                      <YAxis type="number" domain={[0, 1]} ticks={[0, 1]} tickFormatter={(value) => (value === 1 ? "Off" : "On")} />
+                      <YAxis type="number" domain={[0, 1]} ticks={[0, 1]} tickFormatter={(value) => (value === 1 ? "On" : "Off")} />
                       <Tooltip
                         labelFormatter={(_, payload) => {
                           if (payload && payload.length > 0) {
@@ -681,7 +687,7 @@ export default function Users() {
                           }
                           return "";
                         }}
-                        formatter={(value: any) => [value === 1 ? "Off" : "On", "Status"]}
+                        formatter={(value: any) => [value === 1 ? "On" : "Off", "Status"]}
                       />
                       <Legend />
                       <Area type="stepAfter" dataKey="status" stroke="#1976d2" fill="#1976d2" fillOpacity={0.1} strokeWidth={2} name="Device Status" />
