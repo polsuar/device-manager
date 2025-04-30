@@ -27,3 +27,33 @@ export interface DevicePagination {
   total: number;
   hasMore: boolean;
 }
+
+export interface NetworkLog {
+  timestamp: {
+    seconds: number;
+    nanoseconds: number;
+  };
+  networkType: string;
+  signalStrength: number;
+  downloadSpeed: number;
+  batteryUsage: string;
+  data_usage: {
+    rx_bytes: number;
+    tx_bytes: number;
+  };
+  ping: number;
+  jitter: number;
+  snr: number;
+  linkSpeed: number;
+  isCharging: boolean;
+  location?: {
+    lat: number;
+    long: number;
+  };
+}
+
+export interface NetworkLogFilters {
+  startDate?: Date;
+  endDate?: Date;
+  networkType?: string;
+}

@@ -25,6 +25,7 @@ import BatteryIcon from "@mui/icons-material/BatteryFull";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PeopleIcon from "@mui/icons-material/People";
+import { NetworkCheck as NetworkIcon } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -105,6 +106,7 @@ const navigation: NavigationItem[] = [
   { name: "Heart Rate", href: "/heart-rate", icon: HeartRateIcon },
   { name: "Location", href: "/location", icon: LocationIcon },
   { name: "Battery", href: "/battery", icon: BatteryIcon },
+  { name: "Network Logs", href: "/network-logs", icon: NetworkIcon },
   { name: "Notifications", href: "/notifications", icon: NotificationsIcon },
 ];
 

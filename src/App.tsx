@@ -7,6 +7,7 @@ import Devices from "./pages/Devices";
 import HeartRate from "./pages/HeartRate";
 import Location from "./pages/Location";
 import Battery from "./pages/Battery";
+import NetworkLogs from "./pages/NetworkLogs";
 import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import { useAuth } from "./contexts/AuthContext";
@@ -40,6 +41,7 @@ function App() {
             <Route path="heart-rate" element={<HeartRate />} />
             <Route path="location" element={<Location />} />
             <Route path="battery" element={<Battery />} />
+            <Route path="network-logs" element={<NetworkLogs />} />
             <Route path="notifications" element={<Notifications />} />
           </Route>
         </Routes>
