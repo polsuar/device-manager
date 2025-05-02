@@ -588,7 +588,7 @@ export default function Users() {
                                         })}
                                       >
                                         <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} />
+                                        <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
                                         <YAxis allowDecimals={false} domain={[0, 1]} />
                                         <Tooltip labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")} />
                                         {types.map((type, idx) => (
@@ -860,7 +860,7 @@ export default function Users() {
                                 }))}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} />
+                                <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
                                 <YAxis allowDecimals={false} domain={[0, 1]} ticks={[0, 1]} />
                                 <Tooltip
                                   labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")}
