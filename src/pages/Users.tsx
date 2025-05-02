@@ -25,7 +25,7 @@ import { collection, getDocs, doc } from "firebase/firestore";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { subDays, startOfDay, endOfDay } from "date-fns";
+import { subDays, startOfDay, endOfDay, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { networkLogService } from "../services/networkLogService";
 
@@ -70,6 +70,7 @@ export default function Users() {
       "network-data": { ...defaultRange },
       "network-quality": { ...defaultRange },
       "network-battery": { ...defaultRange },
+      "network-types": { ...defaultRange },
     });
   };
 
@@ -323,6 +324,7 @@ export default function Users() {
         linkSpeed: log.linkSpeed || 0,
         batteryUsage: parseFloat(log.batteryUsage?.replace(" µWh", "") || "0"),
         isCharging: log.isCharging || false,
+        networkType: log.networkType || "Unknown",
       }));
   };
 
@@ -497,43 +499,121 @@ export default function Users() {
                     <Grid container spacing={3}>
                       <Grid item xs={12} md={6}>
                         <Paper sx={{ p: 3 }}>
-                          <Typography variant="h6" gutterBottom>
-                            Network Types Distribution
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={userStats.networkStats.networkTypes.map(({ type, count }) => ({
-                                  name: type,
-                                  value: count,
-                                }))}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={100}
-                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                              >
-                                {userStats.networkStats.networkTypes.map(({ type }, index) => {
-                                  const pieColors = [
-                                    "#1976d2", // azul
-                                    "#2e7d32", // verde
-                                    "#ed6c02", // naranja
-                                    "#d32f2f", // rojo
-                                    "#9c27b0", // violeta
-                                    "#00838f", // cyan
-                                    "#fbc02d", // amarillo
-                                    "#6d4c41", // marrón
-                                    "#c2185b", // rosa
-                                    "#7b1fa2", // púrpura
-                                  ];
-                                  return <Cell key={type} fill={pieColors[index % pieColors.length]} />;
-                                })}
-                              </Pie>
-                              <Tooltip formatter={(value: number) => [`${value} connections`, "Count"]} />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                format="dd/MM/yyyy"
+                                value={chartDateRanges["network-types"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-types", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-types"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                format="dd/MM/yyyy"
+                                value={chartDateRanges["network-types"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-types", "endDate", newValue)}
+                                minDate={chartDateRanges["network-types"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Network Types Distribution" chartId="network-types" onExpand={setExpandedChart}>
+                            {(() => {
+                              const filteredLogs = getChartData("network-types");
+                              const networkTypesData = Array.from(
+                                filteredLogs.reduce((acc, log) => {
+                                  const type = log.networkType || "Unknown";
+                                  acc.set(type, (acc.get(type) || 0) + 1);
+                                  return acc;
+                                }, new Map())
+                              ).map(([type, count]) => ({ name: type, value: count }));
+                              const pieColors = [
+                                "#1976d2", // azul
+                                "#2e7d32", // verde
+                                "#ed6c02", // naranja
+                                "#d32f2f", // rojo
+                                "#9c27b0", // violeta
+                                "#00838f", // cyan
+                                "#fbc02d", // amarillo
+                                "#6d4c41", // marrón
+                                "#c2185b", // rosa
+                                "#7b1fa2", // púrpura
+                              ];
+                              const types = Array.from(new Set(filteredLogs.map((log) => log.networkType || "Unknown")));
+                              return (
+                                <Box sx={{ display: "flex", gap: 2 }}>
+                                  <Box sx={{ flex: 1, minWidth: 0, height: 300 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                      <PieChart>
+                                        <Pie
+                                          data={networkTypesData}
+                                          dataKey="value"
+                                          nameKey="name"
+                                          cx="50%"
+                                          cy="50%"
+                                          outerRadius={80}
+                                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                        >
+                                          {networkTypesData.map((entry, index) => (
+                                            <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
+                                          ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value: number) => [`${value} conexiones`, "Cantidad"]} />
+                                        <Legend />
+                                      </PieChart>
+                                    </ResponsiveContainer>
+                                  </Box>
+                                  <Box sx={{ flex: 1, minWidth: 0, height: 300, display: "flex", alignItems: "center" }}>
+                                    <ResponsiveContainer width="100%" height={150}>
+                                      <AreaChart
+                                        data={filteredLogs.map((log) => {
+                                          const entry: any = { timestamp: log.timestamp };
+                                          types.forEach((type) => {
+                                            entry[type] = log.networkType === type ? 1 : 0;
+                                          });
+                                          return entry;
+                                        })}
+                                      >
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} />
+                                        <YAxis allowDecimals={false} domain={[0, 1]} />
+                                        <Tooltip labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")} />
+                                        {types.map((type, idx) => (
+                                          <Area
+                                            key={type}
+                                            type="stepAfter"
+                                            dataKey={type}
+                                            stackId="1"
+                                            stroke={pieColors[idx % pieColors.length]}
+                                            fill={pieColors[idx % pieColors.length]}
+                                          />
+                                        ))}
+                                      </AreaChart>
+                                    </ResponsiveContainer>
+                                  </Box>
+                                </Box>
+                              );
+                            })()}
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-types"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-types"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-types").length}
+                          </Box>
                         </Paper>
                       </Grid>
 
@@ -543,6 +623,7 @@ export default function Users() {
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                               <DatePicker
                                 label="Fecha de inicio"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-speed"]?.startDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-speed", "startDate", newValue)}
                                 maxDate={chartDateRanges["network-speed"]?.endDate || new Date()}
@@ -555,6 +636,7 @@ export default function Users() {
                               />
                               <DatePicker
                                 label="Fecha de fin"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-speed"]?.endDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-speed", "endDate", newValue)}
                                 minDate={chartDateRanges["network-speed"]?.startDate}
@@ -577,19 +659,11 @@ export default function Users() {
                             />
                           </ChartContainer>
                           <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
-                            <b>Rango:</b> {chartDateRanges["network-speed"]?.startDate?.toLocaleString()} -{" "}
-                            {chartDateRanges["network-speed"]?.endDate?.toLocaleString()}
+                            <b>Rango:</b>{" "}
+                            {chartDateRanges["network-speed"]?.startDate ? format(chartDateRanges["network-speed"].startDate, "dd/MM/yyyy HH:mm:ss") : ""} -{" "}
+                            {chartDateRanges["network-speed"]?.endDate ? format(chartDateRanges["network-speed"].endDate, "dd/MM/yyyy HH:mm:ss") : ""}
                             <br />
                             <b>Logs en rango:</b> {getChartData("network-speed").length}
-                            <br />
-                            <b>Timestamps (primeros 3):</b>
-                            <ul style={{ margin: 0, paddingLeft: 16 }}>
-                              {getChartData("network-speed")
-                                .slice(0, 3)
-                                .map((d, i) => (
-                                  <li key={i}>{new Date(d.timestamp).toLocaleString()}</li>
-                                ))}
-                            </ul>
                           </Box>
                         </Paper>
                       </Grid>
@@ -600,6 +674,7 @@ export default function Users() {
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                               <DatePicker
                                 label="Fecha de inicio"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-signal"]?.startDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-signal", "startDate", newValue)}
                                 maxDate={chartDateRanges["network-signal"]?.endDate || new Date()}
@@ -612,6 +687,7 @@ export default function Users() {
                               />
                               <DatePicker
                                 label="Fecha de fin"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-signal"]?.endDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-signal", "endDate", newValue)}
                                 minDate={chartDateRanges["network-signal"]?.startDate}
@@ -648,6 +724,7 @@ export default function Users() {
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                               <DatePicker
                                 label="Fecha de inicio"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-data"]?.startDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-data", "startDate", newValue)}
                                 maxDate={chartDateRanges["network-data"]?.endDate || new Date()}
@@ -660,6 +737,7 @@ export default function Users() {
                               />
                               <DatePicker
                                 label="Fecha de fin"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-data"]?.endDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-data", "endDate", newValue)}
                                 minDate={chartDateRanges["network-data"]?.startDate}
@@ -696,6 +774,7 @@ export default function Users() {
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                               <DatePicker
                                 label="Fecha de inicio"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-quality"]?.startDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-quality", "startDate", newValue)}
                                 maxDate={chartDateRanges["network-quality"]?.endDate || new Date()}
@@ -708,6 +787,7 @@ export default function Users() {
                               />
                               <DatePicker
                                 label="Fecha de fin"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-quality"]?.endDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-quality", "endDate", newValue)}
                                 minDate={chartDateRanges["network-quality"]?.startDate}
@@ -744,6 +824,7 @@ export default function Users() {
                             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                               <DatePicker
                                 label="Fecha de inicio"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-battery"]?.startDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-battery", "startDate", newValue)}
                                 maxDate={chartDateRanges["network-battery"]?.endDate || new Date()}
@@ -756,6 +837,7 @@ export default function Users() {
                               />
                               <DatePicker
                                 label="Fecha de fin"
+                                format="dd/MM/yyyy"
                                 value={chartDateRanges["network-battery"]?.endDate || null}
                                 onChange={(newValue) => handleDateRangeChange("network-battery", "endDate", newValue)}
                                 minDate={chartDateRanges["network-battery"]?.startDate}
@@ -769,13 +851,24 @@ export default function Users() {
                               />
                             </LocalizationProvider>
                           </Box>
-                          <ChartContainer title="Battery Status" chartId="network-battery" onExpand={setExpandedChart}>
-                            <NetworkBatteryChart
-                              key={`${chartDateRanges["network-battery"]?.startDate?.getTime() || ""}-${
-                                chartDateRanges["network-battery"]?.endDate?.getTime() || ""
-                              }`}
-                              data={getChartData("network-battery")}
-                            />
+                          <ChartContainer title="Charging Status Over Time" chartId="network-battery" onExpand={setExpandedChart}>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <AreaChart
+                                data={getChartData("network-battery").map((d) => ({
+                                  timestamp: d.timestamp,
+                                  isCharging: d.isCharging ? 1 : 0,
+                                }))}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} />
+                                <YAxis allowDecimals={false} domain={[0, 1]} ticks={[0, 1]} />
+                                <Tooltip
+                                  labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")}
+                                  formatter={(v) => (v === 1 ? "Charging" : "Not Charging")}
+                                />
+                                <Area type="stepAfter" dataKey="isCharging" stroke="#2e7d32" fill="#2e7d32" fillOpacity={0.3} />
+                              </AreaChart>
+                            </ResponsiveContainer>
                           </ChartContainer>
                           <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
                             <b>Rango:</b> {chartDateRanges["network-battery"]?.startDate?.toLocaleString()} -{" "}
@@ -814,6 +907,7 @@ export default function Users() {
                     <Grid item xs={12} sm={6} md={3}>
                       <DatePicker
                         label="Fecha de inicio"
+                        format="dd/MM/yyyy"
                         value={expandedChart ? chartDateRanges[expandedChart]?.startDate || null : null}
                         onChange={(newValue) => expandedChart && handleDateRangeChange(expandedChart, "startDate", newValue)}
                         maxDate={expandedChart ? chartDateRanges[expandedChart]?.endDate || new Date() : new Date()}
@@ -828,6 +922,7 @@ export default function Users() {
                     <Grid item xs={12} sm={6} md={3}>
                       <DatePicker
                         label="Fecha de fin"
+                        format="dd/MM/yyyy"
                         value={expandedChart ? chartDateRanges[expandedChart]?.endDate || null : null}
                         onChange={(newValue) => expandedChart && handleDateRangeChange(expandedChart, "endDate", newValue)}
                         minDate={expandedChart ? chartDateRanges[expandedChart]?.startDate : undefined}
