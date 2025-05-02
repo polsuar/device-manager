@@ -41,3 +41,4 @@ export const getLast24HDataByType = (data: Measurement[], type: string) => {
   const twentyFourHoursBeforeLast = lastTimestamp - 24 * 60 * 60 * 1000;
   return sorted.filter((m) => m.timestamp >= twentyFourHoursBeforeLast);
 };
+ 

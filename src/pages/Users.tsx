@@ -177,7 +177,7 @@ export default function Users() {
   const handleViewUserLogs = async (userId: string) => {
     try {
       setLoading(true);
-      const networkLogs = await networkLogService.getNetworkLogs(userId);
+      const networkLogs = await networkLogService.getNetworkLogs(userId, undefined, 1000);
 
       setSelectedUser({
         userId,
@@ -279,6 +279,22 @@ export default function Users() {
       .sort((a, b) => a.timestamp - b.timestamp);
   };
 
+  const normalizeLogTimestamp = (log: any) => {
+    if (typeof log.timestamp === "string") {
+      const date = new Date(log.timestamp);
+      if (!isNaN(date.getTime())) {
+        return {
+          ...log,
+          timestamp: {
+            seconds: Math.floor(date.getTime() / 1000),
+            nanoseconds: 0,
+          },
+        };
+      }
+    }
+    return log;
+  };
+
   const getChartData = (chartId: string) => {
     if (!selectedUser?.networkLogs) return [];
 
@@ -287,6 +303,7 @@ export default function Users() {
     const endTime = range.endDate.getTime();
 
     return selectedUser.networkLogs
+      .map(normalizeLogTimestamp)
       .filter((log) => {
         const logTime = log.timestamp.seconds * 1000;
         return logTime >= startTime && logTime <= endTime;
@@ -498,13 +515,19 @@ export default function Users() {
                                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                               >
                                 {userStats.networkStats.networkTypes.map(({ type }, index) => {
-                                  const colors = {
-                                    WIFI: "#1976d2",
-                                    LTE: "#2e7d32",
-                                    "3G": "#ed6c02",
-                                    "2G": "#d32f2f",
-                                  };
-                                  return <Cell key={type} fill={colors[type as keyof typeof colors] || "#9c27b0"} />;
+                                  const pieColors = [
+                                    "#1976d2", // azul
+                                    "#2e7d32", // verde
+                                    "#ed6c02", // naranja
+                                    "#d32f2f", // rojo
+                                    "#9c27b0", // violeta
+                                    "#00838f", // cyan
+                                    "#fbc02d", // amarillo
+                                    "#6d4c41", // marrón
+                                    "#c2185b", // rosa
+                                    "#7b1fa2", // púrpura
+                                  ];
+                                  return <Cell key={type} fill={pieColors[index % pieColors.length]} />;
                                 })}
                               </Pie>
                               <Tooltip formatter={(value: number) => [`${value} connections`, "Count"]} />
@@ -515,33 +538,252 @@ export default function Users() {
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <ChartContainer title="Network Speed Metrics" chartId="network-speed" onExpand={setExpandedChart}>
-                          <NetworkSpeedChart data={getChartData("network-speed")} />
-                        </ChartContainer>
+                        <Paper sx={{ p: 3 }}>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                value={chartDateRanges["network-speed"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-speed", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-speed"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                value={chartDateRanges["network-speed"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-speed", "endDate", newValue)}
+                                minDate={chartDateRanges["network-speed"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Network Speed Metrics" chartId="network-speed" onExpand={setExpandedChart}>
+                            <NetworkSpeedChart
+                              key={`${chartDateRanges["network-speed"]?.startDate?.getTime() || ""}-${
+                                chartDateRanges["network-speed"]?.endDate?.getTime() || ""
+                              }`}
+                              data={getChartData("network-speed")}
+                            />
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-speed"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-speed"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-speed").length}
+                            <br />
+                            <b>Timestamps (primeros 3):</b>
+                            <ul style={{ margin: 0, paddingLeft: 16 }}>
+                              {getChartData("network-speed")
+                                .slice(0, 3)
+                                .map((d, i) => (
+                                  <li key={i}>{new Date(d.timestamp).toLocaleString()}</li>
+                                ))}
+                            </ul>
+                          </Box>
+                        </Paper>
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <ChartContainer title="Signal Quality" chartId="network-signal" onExpand={setExpandedChart}>
-                          <NetworkSignalChart data={getChartData("network-signal")} />
-                        </ChartContainer>
+                        <Paper sx={{ p: 3 }}>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                value={chartDateRanges["network-signal"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-signal", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-signal"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                value={chartDateRanges["network-signal"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-signal", "endDate", newValue)}
+                                minDate={chartDateRanges["network-signal"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Signal Quality" chartId="network-signal" onExpand={setExpandedChart}>
+                            <NetworkSignalChart
+                              key={`${chartDateRanges["network-signal"]?.startDate?.getTime() || ""}-${
+                                chartDateRanges["network-signal"]?.endDate?.getTime() || ""
+                              }`}
+                              data={getChartData("network-signal")}
+                            />
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-signal"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-signal"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-signal").length}
+                          </Box>
+                        </Paper>
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <ChartContainer title="Data Usage Over Time" chartId="network-data" onExpand={setExpandedChart}>
-                          <NetworkDataChart data={getChartData("network-data")} />
-                        </ChartContainer>
+                        <Paper sx={{ p: 3 }}>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                value={chartDateRanges["network-data"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-data", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-data"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                value={chartDateRanges["network-data"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-data", "endDate", newValue)}
+                                minDate={chartDateRanges["network-data"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Data Usage Over Time" chartId="network-data" onExpand={setExpandedChart}>
+                            <NetworkDataChart
+                              key={`${chartDateRanges["network-data"]?.startDate?.getTime() || ""}-${
+                                chartDateRanges["network-data"]?.endDate?.getTime() || ""
+                              }`}
+                              data={getChartData("network-data")}
+                            />
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-data"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-data"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-data").length}
+                          </Box>
+                        </Paper>
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <ChartContainer title="Network Quality" chartId="network-quality" onExpand={setExpandedChart}>
-                          <NetworkQualityChart data={getChartData("network-quality")} />
-                        </ChartContainer>
+                        <Paper sx={{ p: 3 }}>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                value={chartDateRanges["network-quality"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-quality", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-quality"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                value={chartDateRanges["network-quality"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-quality", "endDate", newValue)}
+                                minDate={chartDateRanges["network-quality"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Network Quality" chartId="network-quality" onExpand={setExpandedChart}>
+                            <NetworkQualityChart
+                              key={`${chartDateRanges["network-quality"]?.startDate?.getTime() || ""}-${
+                                chartDateRanges["network-quality"]?.endDate?.getTime() || ""
+                              }`}
+                              data={getChartData("network-quality")}
+                            />
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-quality"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-quality"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-quality").length}
+                          </Box>
+                        </Paper>
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <ChartContainer title="Battery Status" chartId="network-battery" onExpand={setExpandedChart}>
-                          <NetworkBatteryChart data={getChartData("network-battery")} />
-                        </ChartContainer>
+                        <Paper sx={{ p: 3 }}>
+                          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                              <DatePicker
+                                label="Fecha de inicio"
+                                value={chartDateRanges["network-battery"]?.startDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-battery", "startDate", newValue)}
+                                maxDate={chartDateRanges["network-battery"]?.endDate || new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                              <DatePicker
+                                label="Fecha de fin"
+                                value={chartDateRanges["network-battery"]?.endDate || null}
+                                onChange={(newValue) => handleDateRangeChange("network-battery", "endDate", newValue)}
+                                minDate={chartDateRanges["network-battery"]?.startDate}
+                                maxDate={new Date()}
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    fullWidth: true,
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </Box>
+                          <ChartContainer title="Battery Status" chartId="network-battery" onExpand={setExpandedChart}>
+                            <NetworkBatteryChart
+                              key={`${chartDateRanges["network-battery"]?.startDate?.getTime() || ""}-${
+                                chartDateRanges["network-battery"]?.endDate?.getTime() || ""
+                              }`}
+                              data={getChartData("network-battery")}
+                            />
+                          </ChartContainer>
+                          <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                            <b>Rango:</b> {chartDateRanges["network-battery"]?.startDate?.toLocaleString()} -{" "}
+                            {chartDateRanges["network-battery"]?.endDate?.toLocaleString()}
+                            <br />
+                            <b>Logs en rango:</b> {getChartData("network-battery").length}
+                          </Box>
+                        </Paper>
                       </Grid>
                     </Grid>
                   </Box>
