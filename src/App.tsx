@@ -11,6 +11,7 @@ import NetworkLogs from "./pages/NetworkLogs";
 import Notifications from "./pages/Notifications";
 import Login from "./pages/Login";
 import { useAuth } from "./contexts/AuthContext";
+import Fallcare3DPage from "./pages/Fallcare3DPage";
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -43,6 +44,7 @@ function App() {
             <Route path="battery" element={<Battery />} />
             <Route path="network-logs" element={<NetworkLogs />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="fallcare-3d" element={<Fallcare3DPage />} />
           </Route>
         </Routes>
       </Router>

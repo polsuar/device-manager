@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { initializeFirebase, getFirebaseInstance } from "../config/firebase";
 
-type Environment = "UAT" | "PROD";
+type Environment = "UAT" | "PROD" | "FALLCARE";
 
 interface FirebaseInstances {
   db: any;
@@ -22,18 +22,21 @@ export const EnvironmentProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [firebaseInstances, setFirebaseInstances] = useState<Record<Environment, FirebaseInstances | null>>({
     UAT: null,
     PROD: null,
+    FALLCARE: null,
   });
 
   useEffect(() => {
     const initialize = async () => {
       try {
-        // Initialize both environments
+        // Initialize all environments
         const uatInstance = await initializeFirebase("UAT");
         const prodInstance = await initializeFirebase("PROD");
+        const fallcareInstance = await initializeFirebase("FALLCARE");
 
         setFirebaseInstances({
           UAT: { db: uatInstance.db, auth: uatInstance.auth },
           PROD: { db: prodInstance.db, auth: prodInstance.auth },
+          FALLCARE: { db: fallcareInstance.db, auth: fallcareInstance.auth },
         });
 
         setIsInitialized(true);
