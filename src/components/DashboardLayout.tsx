@@ -147,7 +147,7 @@ export default function DashboardLayout() {
           <FormControl size="small" sx={{ minWidth: 120, mr: 2 }}>
             <Select
               value={environment}
-              onChange={(e) => setEnvironment(e.target.value as "UAT" | "PROD")}
+              onChange={(e) => setEnvironment(e.target.value as "UAT" | "PROD" | "FALLCARE")}
               sx={{
                 color: "white",
                 ".MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255, 255, 255, 0.5)" },
@@ -158,6 +158,7 @@ export default function DashboardLayout() {
             >
               <MenuItem value="UAT">UAT</MenuItem>
               <MenuItem value="PROD">PROD</MenuItem>
+              <MenuItem value="FALLCARE">FALLCARE</MenuItem>
             </Select>
           </FormControl>
         </Toolbar>
@@ -187,6 +188,16 @@ export default function DashboardLayout() {
               </ListItemButton>
             </ListItem>
           ))}
+          {environment === "FALLCARE" && (
+            <ListItem disablePadding>
+              <ListItemButton selected={location.pathname === "/fallcare-3d"} onClick={() => navigate("/fallcare-3d")}>
+                <ListItemIcon>
+                  <DevicesIcon sx={{ color: location.pathname === "/fallcare-3d" ? "primary.main" : "inherit" }} />
+                </ListItemIcon>
+                <ListItemText primary="Fallcare 3D" />
+              </ListItemButton>
+            </ListItem>
+          )}
           <Divider sx={{ my: 1 }} />
           <ListItem disablePadding>
             <ListItemButton onClick={signOut}>

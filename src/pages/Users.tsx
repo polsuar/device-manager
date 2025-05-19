@@ -21,7 +21,7 @@ import {
   TextField,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Close as CloseIcon } from "@mui/icons-material";
-import { collection, getDocs, doc } from "firebase/firestore";
+import { collection, getDocs, doc, query, where } from "firebase/firestore";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -46,11 +46,13 @@ export default function Users() {
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userMeasurements, setUserMeasurements] = useState<Measurement[]>([]);
+  const [userMeasurementsRaw, setUserMeasurementsRaw] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"events" | "logs">("events");
+  const [viewMode, setViewMode] = useState<"events" | "logs" | "measurements">("events");
   const [chartDateRanges, setChartDateRanges] = useState<Record<string, ChartDateRange>>({});
+  const [measurementsDateRange, setMeasurementsDateRange] = useState<{ startDate: Date; endDate: Date } | null>(null);
 
   const initializeDateRanges = () => {
     const now = new Date();
@@ -71,6 +73,9 @@ export default function Users() {
       "network-quality": { ...defaultRange },
       "network-battery": { ...defaultRange },
       "network-types": { ...defaultRange },
+      "measurements-battery": { ...defaultRange },
+      "measurements-plugged": { ...defaultRange },
+      "measurements-errors": { ...defaultRange },
     });
   };
 
@@ -217,6 +222,53 @@ export default function Users() {
     } catch (error) {
       console.error("Error fetching user logs:", error);
       setError("Error al cargar los logs del usuario. Por favor, intente nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewUserMeasurements = async (userId: string, customRange?: { startDate: Date; endDate: Date }) => {
+    setSelectedUser({
+      userId,
+      networkLogs: [],
+      measurements: [],
+    });
+    setViewMode("measurements");
+    setLoading(true);
+    try {
+      const { db } = getFirebase();
+      // Usar el rango de fechas seleccionado o el default
+      const range = customRange ||
+        measurementsDateRange || {
+          startDate: subDays(new Date(), 1),
+          endDate: new Date(),
+        };
+      setMeasurementsDateRange(range);
+      const startTimestamp = String(range.startDate.getTime());
+      const endTimestamp = String(range.endDate.getTime());
+      const measurementsRef = collection(doc(db, "users", userId), "MEASUREMENTS");
+      const q = query(measurementsRef, where("__name__", ">=", startTimestamp), where("__name__", "<=", endTimestamp));
+      const measurementsSnapshot = await getDocs(q);
+      const measurements = measurementsSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        const id = doc.id;
+        return { id, ...data };
+      });
+      setUserMeasurementsRaw(measurements);
+      setUserStats({
+        userId,
+        email: users.find((u) => u.userId === userId)?.email || "Unknown",
+        totalDevices: 0,
+        activeDevices: 0,
+        averageBattery: 0,
+        averageHeartRate: 0,
+        devicesWithLocation: 0,
+        lastActivity: 0,
+        networkStats: undefined,
+      });
+    } catch (error) {
+      console.error("Error fetching user measurements:", error);
+      setError("Error al cargar las mediciones del usuario. Por favor, intente nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -406,6 +458,9 @@ export default function Users() {
                       <Button variant="outlined" size="small" color="warning" onClick={() => handleViewUserLogs(user.userId)}>
                         Logs
                       </Button>
+                      <Button variant="outlined" size="small" color="info" sx={{ mr: 1 }} onClick={() => handleViewUserMeasurements(user.userId)}>
+                        Mediciones
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -419,13 +474,14 @@ export default function Users() {
         <Box>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
             <Typography variant="h5">
-              {viewMode === "events" ? "User Details" : "Network Logs"}: {userStats.userId}
+              {viewMode === "events" ? "User Details" : viewMode === "logs" ? "Network Logs" : "Mediciones"}: {userStats.userId}
             </Typography>
             <IconButton
               onClick={() => {
                 setSelectedUser(null);
                 setUserStats(null);
                 setUserMeasurements([]);
+                setUserMeasurementsRaw([]);
                 setViewMode("events");
                 initializeDateRanges();
               }}
@@ -477,7 +533,7 @@ export default function Users() {
                 </Grid>
               </Box>
             </>
-          ) : (
+          ) : viewMode === "logs" ? (
             <>
               {userStats.networkStats && (
                 <>
@@ -861,7 +917,7 @@ export default function Users() {
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
-                                <YAxis allowDecimals={false} domain={[0, 1]} ticks={[0, 1]} />
+                                <YAxis allowDecimals={false} domain={[0, 1]} />
                                 <Tooltip
                                   labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")}
                                   formatter={(v) => (v === 1 ? "Charging" : "Not Charging")}
@@ -883,7 +939,262 @@ export default function Users() {
                 </>
               )}
             </>
-          )}
+          ) : viewMode === "measurements" ? (
+            <Box>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3 }}>
+                    <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                        <DatePicker
+                          label="Fecha de inicio"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-battery"]?.startDate || null}
+                          onChange={(newValue) => {
+                            handleDateRangeChange("measurements-battery", "startDate", newValue);
+                            if (selectedUser) {
+                              handleViewUserMeasurements(selectedUser.userId, {
+                                startDate: newValue || chartDateRanges["measurements-battery"].startDate,
+                                endDate: chartDateRanges["measurements-battery"].endDate,
+                              });
+                            }
+                          }}
+                          maxDate={chartDateRanges["measurements-battery"]?.endDate || new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                        <DatePicker
+                          label="Fecha de fin"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-battery"]?.endDate || null}
+                          onChange={(newValue) => {
+                            handleDateRangeChange("measurements-battery", "endDate", newValue);
+                            if (selectedUser) {
+                              handleViewUserMeasurements(selectedUser.userId, {
+                                startDate: chartDateRanges["measurements-battery"].startDate,
+                                endDate: newValue || chartDateRanges["measurements-battery"].endDate,
+                              });
+                            }
+                          }}
+                          minDate={chartDateRanges["measurements-battery"]?.startDate}
+                          maxDate={new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Box>
+                    <ChartContainer title="Battery Level Over Time" chartId="measurements-battery" onExpand={setExpandedChart}>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart
+                          data={(() => {
+                            // Filtrar, mapear y ordenar (sin deduplicar)
+                            return userMeasurementsRaw
+                              .filter((m) => {
+                                const t = Number(m.id);
+                                const range = getDateRange("measurements-battery");
+                                const keys = Object.keys(m).filter((k) => k !== "id");
+                                let mainKey = keys.find((k) => k.includes("battery.Success")) || keys[0];
+                                let data = m[mainKey] || {};
+                                return t >= range.startDate.getTime() && t <= range.endDate.getTime() && typeof data.battery_level === "number";
+                              })
+                              .map((m) => {
+                                const keys = Object.keys(m).filter((k) => k !== "id");
+                                let mainKey = keys.find((k) => k.includes("battery.Success")) || keys[0];
+                                let data = m[mainKey] || {};
+                                return {
+                                  timestamp: Number(m.id),
+                                  battery_level: data.battery_level,
+                                };
+                              })
+                              .sort((a, b) => a.timestamp - b.timestamp);
+                          })()}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
+                          <YAxis domain={[0, 100]} />
+                          <Tooltip labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")} />
+                          <Legend />
+                          <Area type="monotone" dataKey="battery_level" stroke="#2e7d32" fill="#2e7d32" fillOpacity={0.1} name="Battery Level" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                    <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                      <b>Rango:</b> {chartDateRanges["measurements-battery"]?.startDate?.toLocaleString()} -{" "}
+                      {chartDateRanges["measurements-battery"]?.endDate?.toLocaleString()}
+                      <br />
+                      <b>Mediciones en rango:</b>{" "}
+                      {
+                        userMeasurementsRaw.filter((m) => {
+                          const t = Number(m.id);
+                          const range = getDateRange("measurements-battery");
+                          return t >= range.startDate.getTime() && t <= range.endDate.getTime();
+                        }).length
+                      }
+                    </Box>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3 }}>
+                    <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                        <DatePicker
+                          label="Fecha de inicio"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-plugged"]?.startDate || null}
+                          onChange={(newValue) => handleDateRangeChange("measurements-plugged", "startDate", newValue)}
+                          maxDate={chartDateRanges["measurements-plugged"]?.endDate || new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                        <DatePicker
+                          label="Fecha de fin"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-plugged"]?.endDate || null}
+                          onChange={(newValue) => handleDateRangeChange("measurements-plugged", "endDate", newValue)}
+                          minDate={chartDateRanges["measurements-plugged"]?.startDate}
+                          maxDate={new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Box>
+                    <ChartContainer title="Plugged Status Over Time" chartId="measurements-plugged" onExpand={setExpandedChart}>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart
+                          data={userMeasurementsRaw
+                            .filter((m) => {
+                              const t = Number(m.id);
+                              const range = getDateRange("measurements-plugged");
+                              return t >= range.startDate.getTime() && t <= range.endDate.getTime();
+                            })
+                            .map((m) => {
+                              const keys = Object.keys(m).filter((k) => k !== "id");
+                              let mainKey = keys.find((k) => k.includes("battery.Success")) || keys[0];
+                              let data = m[mainKey] || {};
+                              return {
+                                timestamp: Number(m.id),
+                                plugged: data.battery_plugged === true ? 1 : 0,
+                              };
+                            })}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
+                          <YAxis allowDecimals={false} domain={[0, 1]} ticks={[0, 1]} tickFormatter={(v) => (v === 1 ? "Sí" : "No")} />
+                          <Tooltip labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")} />
+                          <Legend />
+                          <Area type="stepAfter" dataKey="plugged" stroke="#1976d2" fill="#1976d2" fillOpacity={0.1} name="Plugged" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                    <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                      <b>Rango:</b> {chartDateRanges["measurements-plugged"]?.startDate?.toLocaleString()} -{" "}
+                      {chartDateRanges["measurements-plugged"]?.endDate?.toLocaleString()}
+                      <br />
+                      <b>Mediciones en rango:</b>{" "}
+                      {
+                        userMeasurementsRaw.filter((m) => {
+                          const t = Number(m.id);
+                          const range = getDateRange("measurements-plugged");
+                          return t >= range.startDate.getTime() && t <= range.endDate.getTime();
+                        }).length
+                      }
+                    </Box>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3 }}>
+                    <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+                        <DatePicker
+                          label="Fecha de inicio"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-errors"]?.startDate || null}
+                          onChange={(newValue) => handleDateRangeChange("measurements-errors", "startDate", newValue)}
+                          maxDate={chartDateRanges["measurements-errors"]?.endDate || new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                        <DatePicker
+                          label="Fecha de fin"
+                          format="dd/MM/yyyy"
+                          value={chartDateRanges["measurements-errors"]?.endDate || null}
+                          onChange={(newValue) => handleDateRangeChange("measurements-errors", "endDate", newValue)}
+                          minDate={chartDateRanges["measurements-errors"]?.startDate}
+                          maxDate={new Date()}
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              fullWidth: true,
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Box>
+                    <ChartContainer title="Errores por Timestamp" chartId="measurements-errors" onExpand={setExpandedChart}>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart
+                          data={userMeasurementsRaw
+                            .filter((m) => {
+                              const t = Number(m.id);
+                              const range = getDateRange("measurements-errors");
+                              return t >= range.startDate.getTime() && t <= range.endDate.getTime();
+                            })
+                            .map((m) => {
+                              const keys = Object.keys(m).filter((k) => k !== "id");
+                              const errorKeys = keys.filter((k) => k.includes("Error"));
+                              return {
+                                timestamp: Number(m.id),
+                                errors: errorKeys.length,
+                              };
+                            })}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="timestamp" tickFormatter={(v) => format(new Date(v), "dd/MM HH:mm")} tick={{ fontSize: 12 }} />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip labelFormatter={(v) => format(new Date(v), "dd/MM/yyyy HH:mm:ss")} />
+                          <Legend />
+                          <Area type="monotone" dataKey="errors" stroke="#d32f2f" fill="#d32f2f" fillOpacity={0.1} name="Errores" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                    <Box sx={{ mt: 1, fontSize: 13, color: "#888" }}>
+                      <b>Rango:</b> {chartDateRanges["measurements-errors"]?.startDate?.toLocaleString()} -{" "}
+                      {chartDateRanges["measurements-errors"]?.endDate?.toLocaleString()}
+                      <br />
+                      <b>Mediciones en rango:</b>{" "}
+                      {
+                        userMeasurementsRaw.filter((m) => {
+                          const t = Number(m.id);
+                          const range = getDateRange("measurements-errors");
+                          return t >= range.startDate.getTime() && t <= range.endDate.getTime();
+                        }).length
+                      }
+                    </Box>
+                  </Paper>
+                </Grid>
+              </Grid>
+            </Box>
+          ) : null}
 
           <Dialog open={!!expandedChart} onClose={() => setExpandedChart(null)} maxWidth="lg" fullWidth>
             <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

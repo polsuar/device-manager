@@ -26,7 +26,9 @@
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^6.22.1",
-    "recharts": "^2.15.1"
+    "recharts": "^2.15.1",
+    "react-plotly.js": "^2.5.1",
+    "plotly.js": "^2.32.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",
